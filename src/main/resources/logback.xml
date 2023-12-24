@@ -1,0 +1,14 @@
+<configuration>
+    <property name="CONSOLE_ENCODING" value="UTF-8" />
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+<!--        <withJansi>true</withJansi>-->
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>%red(Tardigrade \( ꒰֎꒱ \) )- %cyan(%d{HH:mm:ss.SSS}){\u001B[35m} %highlight(%-5level){FATAL=red, ERROR=red, WARN=yellow, INFO=green, DEBUG=cyan, TRACE=blue}| %logger{36} | %msg%n</Pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
