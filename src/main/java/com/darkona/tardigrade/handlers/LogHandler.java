@@ -9,9 +9,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static com.darkona.tardigrade.Main.rainbowify;
+
 public class LogHandler extends TardigradeHandler implements HttpHandler {
 
-    Logger headLog = (Logger) LoggerFactory.getLogger("HEADER");
+    Logger headLog = (Logger) LoggerFactory.getLogger(rainbowify("HEADER"));
     Logger bodyLog = (Logger) LoggerFactory.getLogger("BODY");
     Logger methodLog = (Logger) LoggerFactory.getLogger("METHOD");
 

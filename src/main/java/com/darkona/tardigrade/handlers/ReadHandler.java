@@ -1,29 +1,59 @@
 package com.darkona.tardigrade.handlers;
 
+import ch.qos.logback.classic.Logger;
+import com.darkona.tardigrade.Main;
 import com.darkona.tardigrade.configuration.TardigradeConfiguration;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.net.URISyntaxException;
+
+import static com.darkona.tardigrade.Main.rainbowify;
 
 public class ReadHandler extends TardigradeHandler implements HttpHandler {
 
     private final TardigradeConfiguration config;
 
+    private final Logger log = (Logger)LoggerFactory.getLogger("File reader");
     public ReadHandler(TardigradeConfiguration config) {
         this.config = config;
     }
 
+    private File findFile(String name) {
+        var is =  Main.class.getClassLoader().getResource(name);
+        if (is == null){
+            try {
+                String jarPath = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
+                String basePath = config.input();
+                return new File(jarPath + basePath, name);
+            } catch (URISyntaxException e) {
+                log.error("Can't find file " + name);
+                return null;
+            }
+        }else{
+            return new File(is.getFile());
+        }
+    }
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         var path = cleanPath(exchange.getRequestURI().getRawPath());
-        System.out.println("cleanedpath: " + path);
+        var basePath = config.input();
+        String jarDirPath;
+        try {
+            jarDirPath = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(rainbowify("cleanedpath: ") + path);
         var fileName = path.substring(path.lastIndexOf("/") + 1);
         System.out.println("FileName: " + fileName);
-
+        System.out.println(jarDirPath + "/" + basePath + "/" + fileName);
+        var file = new File(basePath, fileName);
+        if(file.exists()){
+            System.out.println(" file exists! ");
+        }
 
 
 

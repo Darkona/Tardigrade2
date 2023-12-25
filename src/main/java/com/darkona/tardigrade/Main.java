@@ -28,7 +28,7 @@ public class Main {
     static final String fullColor = rainbowify("Full color");
 
 
-    private static String rainbowify(String s) {
+    public static String rainbowify(String s) {
         List<Ansi> rainbow = List.of(Ansi.RED, Ansi.ORANGE, Ansi.YELLOW, Ansi.GREEN, Ansi.AQUA, Ansi.BLUE, Ansi.PURPLE, Ansi.PINK);
         StringBuilder result = new StringBuilder();
         int colorIndex = 0;
