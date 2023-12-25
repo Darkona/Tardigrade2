@@ -1,22 +1,18 @@
 package com.darkona.tardigrade;
 
 import com.darkona.tardigrade.configuration.TardigradeConfiguration;
-import com.darkona.tardigrade.handlers.ReadHandler;
 import com.darkona.tardigrade.handlers.LogHandler;
+import com.darkona.tardigrade.handlers.ReadHandler;
 import com.darkona.tardigrade.handlers.WriteHandler;
 import com.darkona.tardigrade.logging.Ansi;
 import com.sun.net.httpserver.HttpServer;
 import org.fusesource.jansi.AnsiConsole;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 public class Main {
@@ -83,7 +79,7 @@ public class Main {
         return NAME;
     }
 
-    private static void printInitialization(TardigradeConfiguration config) throws Exception {
+    private static void printInitialization(TardigradeConfiguration config)  {
 
         var actual_banner = detectUTF8() ? BANNER : NON_UTF_BANNER;
         say(config.color() ? (Ansi.PINK + actual_banner + Ansi.RESET) : actual_banner);
@@ -102,10 +98,6 @@ public class Main {
         return console.charset().equals(StandardCharsets.UTF_8);
     }
 
-    public static void clearScreen() {
-        System.out.print("\033[H\033[2J");
-        System.out.flush();
-    }
 
     public static void say(Object o) {
         if (!config.quiet()) {
