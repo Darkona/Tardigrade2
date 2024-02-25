@@ -36,13 +36,12 @@ public class TardigradeConfiguration {
     public TardigradeConfiguration(String[] args) throws ParseException {
         Options options = new Options();
 
-        addOption(options,"p, port, Specify server port.");
-
         options.addOption(Option.builder("p").longOpt("port").desc("Server port.").type(Integer.class).numberOfArgs(1).build());
         options.addOption(Option.builder("o").longOpt("output").desc("Output directory for writing files").numberOfArgs(1).build());
         options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).build());
         options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").build());
         options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().build());
+        //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
 
 
         cmd = new DefaultParser().parse(options, args);

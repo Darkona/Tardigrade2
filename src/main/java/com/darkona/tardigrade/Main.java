@@ -4,7 +4,8 @@ import com.darkona.tardigrade.configuration.TardigradeConfiguration;
 import com.darkona.tardigrade.handlers.LogHandler;
 import com.darkona.tardigrade.handlers.ReadHandler;
 import com.darkona.tardigrade.handlers.WriteHandler;
-import com.darkona.tardigrade.logging.Ansi;
+import com.darkona.tardigrade.logging.BoldAnsi;
+import com.darkona.tardigrade.logging.RegularAnsi;
 import com.sun.net.httpserver.HttpServer;
 import org.fusesource.jansi.AnsiConsole;
 
@@ -29,7 +30,7 @@ public class Main {
 
 
     public static String rainbowify(String s) {
-        List<Ansi> rainbow = List.of(Ansi.RED, Ansi.ORANGE, Ansi.YELLOW, Ansi.GREEN, Ansi.AQUA, Ansi.BLUE, Ansi.PURPLE, Ansi.PINK);
+        List<BoldAnsi> rainbow = List.of(BoldAnsi.RED, BoldAnsi.ORANGE, BoldAnsi.YELLOW, BoldAnsi.GREEN, BoldAnsi.AQUA, BoldAnsi.BLUE, BoldAnsi.PURPLE, BoldAnsi.PINK);
         StringBuilder result = new StringBuilder();
         int colorIndex = 0;
         for (int i = 0; i < s.length(); i++) {
@@ -44,7 +45,7 @@ public class Main {
             }
             result.append(c);
         }
-        result.append(Ansi.RESET);
+        result.append(RegularAnsi.RESET);
         return result.toString();
     }
 
@@ -74,7 +75,7 @@ public class Main {
 
     private static String name() {
         if (config.color()) {
-            return Ansi.PINK + NAME + Ansi.RESET;
+            return RegularAnsi.PINK + NAME + RegularAnsi.RESET;
         }
         return NAME;
     }
@@ -82,11 +83,11 @@ public class Main {
     private static void printInitialization(TardigradeConfiguration config)  {
 
         var actual_banner = detectUTF8() ? BANNER : NON_UTF_BANNER;
-        say(config.color() ? (Ansi.PINK + actual_banner + Ansi.RESET) : actual_banner);
+        say(config.color() ? (RegularAnsi.PINK + actual_banner + RegularAnsi.RESET) : actual_banner);
         say(INIT_MESSAGE);
         say((config.color() ? fullColor : monochrome) + " logging enabled.");
-        var input = (config.color() ? Ansi.DARK_GREEN : "") + "/" + config.input() + Ansi.RESET;
-        var output = (config.color() ? Ansi.DARK_RED : "") + "/" + config.output() + Ansi.RESET;
+        var input = (config.color() ? RegularAnsi.DARK_GREEN : "") + "/" + config.input() + RegularAnsi.RESET;
+        var output = (config.color() ? RegularAnsi.DARK_RED : "") + "/" + config.output() + RegularAnsi.RESET;
         say("Reading files from: " + input + ", writing files to: " + output);
         say("Attempting to bind to port " + config.port());
     }
@@ -103,6 +104,5 @@ public class Main {
         if (!config.quiet()) {
             System.out.println(o);
         }
-
     }
 }
