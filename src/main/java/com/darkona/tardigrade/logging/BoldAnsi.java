@@ -20,7 +20,7 @@ public enum BoldAnsi {
     ORANGE("\u001B[38;5;208m"),
     LIGHT_PURPLE("\u001B[1;95m"),
     YELLOW("\u001B[1;93m"),
-    WHITE("\u001B[1;97m"),
+    WHITE("\u001B[1;97m")
 ;
 
 

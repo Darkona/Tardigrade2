@@ -1,5 +1,6 @@
 package com.darkona.tardigrade.logging;
 
+@SuppressWarnings("unused")
 public enum RegularAnsi {
     RESET("\u001B[0m"),
     BLACK("\u001B[0;30m"),

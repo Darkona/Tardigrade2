@@ -2,8 +2,6 @@ package com.darkona.tardigrade.configuration;
 
 import org.apache.commons.cli.*;
 
-import java.util.Arrays;
-
 public class TardigradeConfiguration {
 
     private final CommandLine cmd;
@@ -22,7 +20,7 @@ public class TardigradeConfiguration {
     }
 
     public String port() {
-        return cmd.getOptionValue("p", "80");
+        return cmd.getOptionValue("p", "8050");
     }
 
     public String params() { return cmd.getOptionValue("a", ""); }
@@ -33,6 +31,7 @@ public class TardigradeConfiguration {
         var ss = s.split(",");
         o.addOption(Option.builder(ss[0].trim()).longOpt(ss[1].trim()).desc(ss[2].trim()).numberOfArgs(1).build());
     }
+
     public TardigradeConfiguration(String[] args) throws ParseException {
         Options options = new Options();
 
@@ -41,6 +40,8 @@ public class TardigradeConfiguration {
         options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).build());
         options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").build());
         options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().build());
+
+        options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").build());
         //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
 
 
