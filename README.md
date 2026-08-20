@@ -1,13 +1,16 @@
 ## Overview
 
-Tardigrade is a testing tool for HTTP clients. It allows you to point your HTTP clients to Tardigrade to observe and log the requests they make. Additionally, you can write these requests to a file for further analysis.
+Tardigrade is a testing tool for HTTP clients. Point a client at Tardigrade to see every
+request it makes, write those requests to disk, and answer them with canned responses so you
+can exercise an application without its real dependencies.
 
 ## Features
 
-- **Colorful Console Output**: Utilizes ANSI codes for enhanced console display.
-- **UTF-8 Detection**: Automatically detects and adjusts for UTF-8 console compatibility.
-- **Configurable Directories**: Allows setting custom input and output directories.
-- **Customizable Port**: Server port can be configured via the configuration file.
+- **Request logging**: method, URI, headers and body of every request, on any path.
+- **Mock responses**: map a URL to a file (or to a body written in the config) and answer with it.
+- **File serving and capture**: read files from an input directory, write request bodies to an output directory.
+- **Colorful console output**: ANSI codes, switchable off.
+- **Configurable**: command line flags or a YAML file.
 
 ## Getting Started
 
@@ -24,7 +27,7 @@ Tardigrade is a testing tool for HTTP clients. It allows you to point your HTTP 
    ```
 2. Navigate to the project directory:
    ```bash
-   cd Tardigrade
+   cd Tardigrade2
    ```
 3. Build the project using Gradle:
    ```bash
@@ -33,40 +36,88 @@ Tardigrade is a testing tool for HTTP clients. It allows you to point your HTTP 
 
 ### Running the Server
 
-To start the server, execute the following command:
+The build leaves the jar and its resources under `build/libs`:
+
 ```bash
-java -jar build/libs/tardigrade.jar
+cd build/libs
+java -jar tardigrade-0.0.1.jar
 ```
 
 ### Command Line Arguments
 
-The application supports several command line arguments for configuration:
+- **`-p` or `--port`**: Server port. Default `8050`.
+- **`-o` or `--output`**: Output directory for written files. Default `output`.
+- **`-i` or `--input`**: Input directory for served files and mock bodies. Default `input`.
+- **`-q` or `--quiet`**: Quiet mode, suppresses the startup banner.
+- **`-d` or `--disable`**: Disables features. Accepts `color`, `header` and `body`, in any
+  combination: `-d color header`.
 
-- **`-p` or `--port`**: Specifies the server port. Default is `8050`.
-- **`-o` or `--output`**: Sets the output directory for writing files.
-- **`-i` or `--input`**: Sets the input directory for loading files.
-- **`-q` or `--quiet`**: Enables quiet mode, suppressing console output.
-- **`-d` or `--disable`**: Disables specific features. Accepts multiple arguments such as `color`, `header`, and `body` to disable color output, headers, and body content respectively.
+## Configuration
 
-### Configuration
+Tardigrade reads `configuration.yml` from the directory the jar sits in, and falls back to the
+copy bundled in the jar. Command line flags win over the file, and the file wins over the
+built-in defaults.
 
-The server can be configured using the `configuration.yml` file located in the `src/main/resources` directory. Key configurations include:
+```yaml
+port: 8050
+input: input
+output: output
+color: true
+loglevel: info
+```
 
-- **Port**: The port on which the server will run.
-- **Input/Output Directories**: Directories for reading and writing files.
+## Mock Responses
+
+Declare pairs of URL and response under `mocks`. When a request matches, Tardigrade logs it as
+usual and answers with the content instead of the default acknowledgement.
+
+```yaml
+mocks:
+  - path: /clientes/42
+    file: cliente-42.json
+
+  - path: /clientes/*          # prefix match
+    file: cliente-generico.json
+
+  - path: /pagos
+    method: POST               # limits the mock to one verb
+    file: pago-creado.json
+    status: 201
+
+  - path: /health
+    body: '{"status":"UP"}'    # written inline instead of in a file
+```
+
+- `file` is resolved against the input directory. `body` is an alternative to it.
+- `status` defaults to `200`. `method` defaults to any verb.
+- The Content-Type comes from the file extension, or from the shape of an inline body. Set
+  `contentType` to override it.
+- An exact path always beats a wildcard; among wildcards, the longest prefix wins.
+- Missing mock files are reported at startup and answered with a 500 that names the file.
+- Mocks cannot shadow `/read`, `/write` and `/log`, which are reserved.
+
+### Live reload
+
+The configuration file is watched while the server runs. Edit it and the mock table is rebuilt
+without a restart, so responses can be adjusted in the middle of a test run.
+
+```
+INFO | Config | Watching .../configuration.yml for changes.
+INFO | Mocks  | Loaded 2 mock route(s).
+```
+
+A file that cannot be parsed leaves the running configuration untouched and says so, instead of
+dropping every mock over a typo. `port` and `color` are read once at startup and need a restart.
 
 ## Handlers and Endpoints
 
-The application uses several handlers to manage different types of HTTP requests:
-
-- **LogHandler**: Logs HTTP request details such as headers, body, and method.
-- **ReadHandler**: Manages reading files from the server, serving directories, and handling file not found errors.
-- **WriteHandler**: Handles writing data to the server.
-
-### Endpoints
-
-- `/read`: Uses `ReadHandler` to handle read requests.
-- `/write`: Uses `WriteHandler` to handle write requests.
+- `/read`: serves files from the input directory. A trailing slash lists the directory.
+  Unknown files return 404.
+- `/write`: `POST`, `PUT` or `PATCH` stores the request body in the output directory.
+  `/write/name.json` writes `name.json`; without a name, the file is named after the timestamp
+  and the Content-Type. Other verbs return 405.
+- `/log`: logs the request and acknowledges it.
+- Every other path falls through to the mock table, and then to logging.
 
 ## License
 
