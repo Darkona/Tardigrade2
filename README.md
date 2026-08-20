@@ -39,9 +39,12 @@ can exercise an application without its real dependencies.
 The build leaves the jar and its resources under `build/libs`:
 
 ```bash
-cd build/libs
-java -jar tardigrade-0.0.1.jar
+java -jar build/libs/tardigrade.jar
 ```
+
+`configuration.yml`, `input/` and `output/` are resolved against the directory holding the jar,
+not against the working directory, so the whole folder can be copied elsewhere and run from
+anywhere. Absolute paths given to `-i` or `-o` are used as they are.
 
 ### Command Line Arguments
 

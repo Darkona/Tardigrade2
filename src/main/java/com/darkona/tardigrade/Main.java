@@ -118,8 +118,8 @@ public class Main {
         say(config.color() ? (RegularAnsi.PINK + actual_banner + RegularAnsi.RESET) : actual_banner);
         say(INIT_MESSAGE);
         say((config.color() ? fullColor : monochrome) + " logging enabled.");
-        var input = paint(RegularAnsi.DARK_GREEN, "/" + config.input());
-        var output = paint(RegularAnsi.DARK_RED, "/" + config.output());
+        var input = paint(RegularAnsi.DARK_GREEN, config.input());
+        var output = paint(RegularAnsi.DARK_RED, config.output());
         say("Reading files from: " + input + ", writing files to: " + output);
         say("Attempting to bind to port " + config.port());
     }

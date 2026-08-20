@@ -35,11 +35,11 @@ public class TardigradeConfiguration {
     public boolean body() { return enableBody; }
 
     public String input() {
-        return resolve("i", "input", "input");
+        return resolveDirectory("i", "input", "input");
     }
 
     public String output() {
-        return resolve("o", "output", "output");
+        return resolveDirectory("o", "output", "output");
     }
 
     public String port() {
@@ -148,13 +148,34 @@ public class TardigradeConfiguration {
     }
 
     private Path externalConfig() {
+        Path home = installDirectory();
+        return home == null ? null : home.resolve(CONFIG_FILE);
+    }
+
+    /**
+     * Directory the jar lives in. Everything Tardigrade reads and writes hangs from here, so a
+     * copy of the jar with its own input/, output/ and configuration.yml works from anywhere,
+     * whatever directory it was launched from.
+     */
+    private Path installDirectory() {
         try {
             File jar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             File dir = jar.isDirectory() ? jar : jar.getParentFile();
-            return dir == null ? null : dir.toPath().resolve(CONFIG_FILE);
+            return dir == null ? null : dir.toPath();
         } catch (URISyntaxException | RuntimeException e) {
             return null;
         }
+    }
+
+    /** Relative directories hang from the install directory; absolute ones are left alone. */
+    private String resolveDirectory(String option, String ymlKey, String fallback) {
+        String value = resolve(option, ymlKey, fallback);
+        Path directory = Path.of(value);
+        if (directory.isAbsolute()) {
+            return value;
+        }
+        Path home = installDirectory();
+        return home == null ? value : home.resolve(directory).normalize().toString();
     }
 
     public boolean color() {

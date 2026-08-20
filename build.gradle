@@ -11,6 +11,7 @@ repositories {
 
 jar {
     archiveBaseName = 'tardigrade'
+    archiveVersion = ''
     manifest {
         attributes 'Main-Class': 'com.darkona.tardigrade.Main'
     }
