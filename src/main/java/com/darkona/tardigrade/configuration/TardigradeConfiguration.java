@@ -1,7 +1,6 @@
 package com.darkona.tardigrade.configuration;
 
 import ch.qos.logback.classic.Logger;
-import com.darkona.tardigrade.Main;
 import org.apache.commons.cli.*;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -75,6 +74,7 @@ public class TardigradeConfiguration {
         options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").build());
         options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().build());
 
+        options.addOption(Option.builder("c").longOpt("config").desc("Configuration file to read instead of the one next to the jar.").numberOfArgs(1).build());
         options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").build());
         //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
 
@@ -132,7 +132,7 @@ public class TardigradeConfiguration {
     }
 
     private Map<String, Object> bundledYaml() {
-        try (InputStream in = Main.class.getClassLoader().getResourceAsStream(CONFIG_FILE)) {
+        try (InputStream in = TardigradeConfiguration.class.getClassLoader().getResourceAsStream(CONFIG_FILE)) {
             if (in != null) {
                 return asMap(new Yaml().load(in));
             }
@@ -148,6 +148,9 @@ public class TardigradeConfiguration {
     }
 
     private Path externalConfig() {
+        if (cmd.hasOption("c")) {
+            return Path.of(cmd.getOptionValue("c")).toAbsolutePath().normalize();
+        }
         Path home = installDirectory();
         return home == null ? null : home.resolve(CONFIG_FILE);
     }
@@ -159,7 +162,7 @@ public class TardigradeConfiguration {
      */
     private Path installDirectory() {
         try {
-            File jar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            File jar = new File(TardigradeConfiguration.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             File dir = jar.isDirectory() ? jar : jar.getParentFile();
             return dir == null ? null : dir.toPath();
         } catch (URISyntaxException | RuntimeException e) {

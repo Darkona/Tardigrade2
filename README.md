@@ -48,9 +48,10 @@ anywhere. Absolute paths given to `-i` or `-o` are used as they are.
 
 ### Command Line Arguments
 
-- **`-p` or `--port`**: Server port. Default `8050`.
+- **`-p` or `--port`**: Server port. Default `8050`. Use `0` to take any free port.
 - **`-o` or `--output`**: Output directory for written files. Default `output`.
 - **`-i` or `--input`**: Input directory for served files and mock bodies. Default `input`.
+- **`-c` or `--config`**: Configuration file to read instead of the one next to the jar.
 - **`-q` or `--quiet`**: Quiet mode, suppresses the startup banner.
 - **`-d` or `--disable`**: Disables features. Accepts `color`, `header` and `body`, in any
   combination: `-d color header`.
@@ -121,6 +122,39 @@ dropping every mock over a typo. `port` and `color` are read once at startup and
   and the Content-Type. Other verbs return 405.
 - `/log`: logs the request and acknowledges it.
 - Every other path falls through to the mock table, and then to logging.
+
+## Embedded Use
+
+The server has a life cycle of its own and holds no static state, so a test can start one on a
+free port, drive it, and stop it. Every request it answers is kept in memory to assert on.
+
+```java
+var config = new TardigradeConfiguration(new String[]{"-p", "0", "-c", "mocks.yml"});
+var server = new TardigradeServer(config);
+int port = server.start();          // the port the OS handed out
+
+client.call(server.baseUrl() + "/api/clientes/42");
+
+var received = server.requests().last().orElseThrow();
+assertEquals("GET", received.method());
+assertTrue(received.hasHeader("X-CORRELACION-ID"));
+
+server.stop();
+```
+
+`requests()` gives the log: `all()`, `forPath(path)`, `last()`, `last(path)`, `count()`,
+`count(path)` and `clear()`. It keeps the last 1000 requests, so a long-running server does not
+grow without bound. `/read` and `/write` are utility endpoints and stay out of the log.
+
+The project is not published anywhere. To use it from another build, point at the jar directly:
+
+```gradle
+testImplementation files("C:/programs/tardigrade/tardigrade.jar")
+```
+
+The jar bundles its own dependencies, so nothing else needs declaring. It also bundles logback
+and jansi, which will meet whatever the consuming project already uses. Splitting a slim
+`tardigrade-core` out of the executable jar is the step to take if that ever bites.
 
 ## License
 
