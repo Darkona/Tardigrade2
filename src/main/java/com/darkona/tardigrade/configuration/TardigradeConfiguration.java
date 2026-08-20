@@ -69,15 +69,15 @@ public class TardigradeConfiguration {
     public TardigradeConfiguration(String[] args) throws ParseException {
         Options options = new Options();
 
-        options.addOption(Option.builder("p").longOpt("port").desc("Server port.").type(Integer.class).numberOfArgs(1).build());
-        options.addOption(Option.builder("o").longOpt("output").desc("Output directory for writing files").numberOfArgs(1).build());
-        options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).build());
-        options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").build());
-        options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().build());
+        options.addOption(Option.builder("p").longOpt("port").desc("Server port.").type(Integer.class).numberOfArgs(1).get());
+        options.addOption(Option.builder("o").longOpt("output").desc("Output directory for writing files").numberOfArgs(1).get());
+        options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).get());
+        options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").get());
+        options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().get());
 
-        options.addOption(Option.builder("c").longOpt("config").desc("Configuration file to read instead of the one next to the jar.").numberOfArgs(1).build());
-        options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").build());
-        //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
+        options.addOption(Option.builder("c").longOpt("config").desc("Configuration file to read instead of the one next to the jar.").numberOfArgs(1).get());
+        options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").get());
+        //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().get());
 
         cmd = new DefaultParser().parse(options, args);
         yml = loadInitialYaml();

@@ -16,7 +16,7 @@ can exercise an application without its real dependencies.
 
 ### Prerequisites
 
-- Java Development Kit (JDK) 11 or higher
+- Java Development Kit (JDK) 21 or higher
 - Gradle
 
 ### Installation
