@@ -1,35 +1,69 @@
 package com.darkona.tardigrade.configuration;
 
+import ch.qos.logback.classic.Logger;
+import com.darkona.tardigrade.Main;
 import org.apache.commons.cli.*;
+import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class TardigradeConfiguration {
 
-    private final CommandLine cmd;
+    private static final String CONFIG_FILE = "configuration.yml";
 
-    private boolean enableColor = true;
+    private static final Logger log = (Logger) LoggerFactory.getLogger("Config");
+
+    private final CommandLine cmd;
+    private volatile Map<String, Object> yml;
+
+    private boolean enableColor;
     private boolean enableHeader = true;
-    private boolean enableBody= true;
-    public boolean headers(){ return enableHeader; }
-    public boolean body(){ return enableBody; }
+    private boolean enableBody = true;
+
+    public boolean headers() { return enableHeader; }
+
+    public boolean body() { return enableBody; }
+
     public String input() {
-        return cmd.getOptionValue("i", "in");
+        return resolve("i", "input", "input");
     }
 
     public String output() {
-        return cmd.getOptionValue("o", "out");
+        return resolve("o", "output", "output");
     }
 
     public String port() {
-        return cmd.getOptionValue("p", "8050");
+        return resolve("p", "port", "8050");
+    }
+
+    public String logLevel() {
+        return resolve(null, "loglevel", "info");
     }
 
     public String params() { return cmd.getOptionValue("a", ""); }
 
-    public boolean quiet() {return cmd.hasOption("q"); }
+    public boolean quiet() { return cmd.hasOption("q"); }
 
-    private void addOption(Options o, String s){
-        var ss = s.split(",");
-        o.addOption(Option.builder(ss[0].trim()).longOpt(ss[1].trim()).desc(ss[2].trim()).numberOfArgs(1).build());
+    /**
+     * Configuration precedence: command line argument, then
+     * configuration.yml, then the built-in default.
+     */
+    private String resolve(String option, String ymlKey, String fallback) {
+        if (option != null && cmd.hasOption(option)) {
+            return cmd.getOptionValue(option);
+        }
+        Object fromYml = yml.get(ymlKey);
+        return fromYml != null ? String.valueOf(fromYml) : fallback;
     }
 
     public TardigradeConfiguration(String[] args) throws ParseException {
@@ -44,32 +78,122 @@ public class TardigradeConfiguration {
         options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").build());
         //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
 
-
         cmd = new DefaultParser().parse(options, args);
-        System.out.println(params());
-        if(cmd.hasOption("d")){
+        yml = loadInitialYaml();
+
+        enableColor = !Boolean.FALSE.equals(yml.get("color"));
+
+        if (cmd.hasOption("d")) {
             var kwargs = cmd.getOptionValues("d");
-            for(String arg : kwargs){
+            for (String arg : kwargs) {
                 if ("color".equalsIgnoreCase(arg)) {
                     enableColor = false;
-                    break;
                 }
-                if("header".equalsIgnoreCase(arg)){
+                if ("header".equalsIgnoreCase(arg)) {
                     enableHeader = false;
                 }
-                if("body".equalsIgnoreCase(arg)){
+                if ("body".equalsIgnoreCase(arg)) {
                     enableBody = false;
                 }
             }
         }
     }
 
+    /**
+     * Looks for configuration.yml next to the jar so it can be edited without repackaging;
+     * if it is not there, falls back to the one bundled in the classpath.
+     */
+    private Map<String, Object> loadYaml() {
+        Path external = externalConfig();
+        if (external != null && Files.isReadable(external)) {
+            try (InputStream in = Files.newInputStream(external)) {
+                return asMap(new Yaml().load(in));
+            } catch (IOException | RuntimeException e) {
+                // A broken file must not silently fall back to the bundled defaults: that would
+                // wipe every mock over a typo. The caller decides what to keep.
+                throw new ConfigurationException("Could not read " + external + ": " + e.getMessage(), e);
+            }
+        }
+        return bundledYaml();
+    }
+
+    /**
+     * At startup a broken file cannot be answered with "keep the previous configuration",
+     * because there is none yet: it is reported and the bundled defaults take over.
+     */
+    private Map<String, Object> loadInitialYaml() {
+        try {
+            return loadYaml();
+        } catch (ConfigurationException e) {
+            log.error(e.getMessage());
+            log.warn("Falling back to the bundled configuration.");
+            return bundledYaml();
+        }
+    }
+
+    private Map<String, Object> bundledYaml() {
+        try (InputStream in = Main.class.getClassLoader().getResourceAsStream(CONFIG_FILE)) {
+            if (in != null) {
+                return asMap(new Yaml().load(in));
+            }
+        } catch (IOException | RuntimeException e) {
+            log.error("Could not read bundled {}: {}", CONFIG_FILE, e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object loaded) {
+        return loaded instanceof Map ? (Map<String, Object>) loaded : Collections.emptyMap();
+    }
+
+    private Path externalConfig() {
+        try {
+            File jar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            File dir = jar.isDirectory() ? jar : jar.getParentFile();
+            return dir == null ? null : dir.toPath().resolve(CONFIG_FILE);
+        } catch (URISyntaxException | RuntimeException e) {
+            return null;
+        }
+    }
 
     public boolean color() {
         return enableColor;
     }
 
-    public void setColor(boolean enable){
+    public void setColor(boolean enable) {
         this.enableColor = enable;
+    }
+
+    /** Canned responses declared under the yaml key 'mocks'. */
+    public List<MockRoute> mocks() {
+        Object raw = yml.get("mocks");
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        List<MockRoute> routes = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                try {
+                    routes.add(MockRoute.from(map));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Ignoring mock: {}", e.getMessage());
+                }
+            }
+        }
+        return routes;
+    }
+
+    /**
+     * Re-reads configuration.yml so mocks can be edited without restarting.
+     * Port and color are fixed once the server is up and are not affected.
+     */
+    public void reload() {
+        yml = loadYaml();
+    }
+
+    /** The editable configuration file next to the jar, or null when there is none. */
+    public Path configFile() {
+        return externalConfig();
     }
 }

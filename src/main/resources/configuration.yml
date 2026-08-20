@@ -1,5 +1,5 @@
-port: 8090
-input: input2
-output: output2
+port: 8050
+input: input
+output: output
 color: true
 loglevel: info

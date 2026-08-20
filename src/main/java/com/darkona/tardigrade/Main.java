@@ -1,18 +1,24 @@
 package com.darkona.tardigrade;
 
+import ch.qos.logback.classic.Level;
+import com.darkona.tardigrade.configuration.ConfigWatcher;
+import com.darkona.tardigrade.configuration.MockRouter;
 import com.darkona.tardigrade.configuration.TardigradeConfiguration;
 import com.darkona.tardigrade.handlers.LogHandler;
+import com.darkona.tardigrade.handlers.MockHandler;
 import com.darkona.tardigrade.handlers.ReadHandler;
 import com.darkona.tardigrade.handlers.WriteHandler;
 import com.darkona.tardigrade.logging.BoldAnsi;
 import com.darkona.tardigrade.logging.RegularAnsi;
 import com.sun.net.httpserver.HttpServer;
 import org.fusesource.jansi.AnsiConsole;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 
 
@@ -52,6 +58,7 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         config = new TardigradeConfiguration(args);
+        applyLogLevel(config.logLevel());
         if (config.color() && !AnsiConsole.isInstalled() && System.console() != null) {
             AnsiConsole.systemInstall();
         }
@@ -64,13 +71,38 @@ public class Main {
 
     }
 
+    private static void applyLogLevel(String level) {
+        var root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        root.setLevel(Level.toLevel(level, Level.INFO));
+    }
+
     private static void startserver() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.parseInt(config.port())), 0);
         server.createContext("/read", new ReadHandler(config));
         server.createContext("/write", new WriteHandler(config));
         server.createContext("/log", new LogHandler(config));
+        // Catch-all: every other path is logged too, so clients can be pointed here
+        // without having to change their URLs.
+        MockRouter router = new MockRouter(config.mocks());
+        router.report(inputDirectory());
+        MockHandler mockHandler = new MockHandler(config, router, new LogHandler(config));
+        server.createContext("/", mockHandler);
+        ConfigWatcher.start(config.configFile(), () -> reloadConfiguration(mockHandler));
 
         server.start();
+    }
+
+    private static Path inputDirectory() {
+        return Path.of(config.input()).toAbsolutePath().normalize();
+    }
+
+    /** Applies configuration.yml again after it changes on disk. */
+    private static void reloadConfiguration(MockHandler mockHandler) {
+        config.reload();
+        applyLogLevel(config.logLevel());
+        MockRouter router = new MockRouter(config.mocks());
+        router.report(inputDirectory());
+        mockHandler.setRouter(router);
     }
 
     private static String name() {
@@ -86,10 +118,14 @@ public class Main {
         say(config.color() ? (RegularAnsi.PINK + actual_banner + RegularAnsi.RESET) : actual_banner);
         say(INIT_MESSAGE);
         say((config.color() ? fullColor : monochrome) + " logging enabled.");
-        var input = (config.color() ? RegularAnsi.DARK_GREEN : "") + "/" + config.input() + RegularAnsi.RESET;
-        var output = (config.color() ? RegularAnsi.DARK_RED : "") + "/" + config.output() + RegularAnsi.RESET;
+        var input = paint(RegularAnsi.DARK_GREEN, "/" + config.input());
+        var output = paint(RegularAnsi.DARK_RED, "/" + config.output());
         say("Reading files from: " + input + ", writing files to: " + output);
         say("Attempting to bind to port " + config.port());
+    }
+
+    private static String paint(RegularAnsi color, String text) {
+        return config.color() ? color + text + RegularAnsi.RESET : text;
     }
 
     private static boolean detectUTF8() {
