@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'maven-publish'
 }
 
 group = 'com.darkona'
@@ -40,6 +41,15 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId = 'tardigrade'
+            from components.java
+        }
+    }
 }
 
 tasks.register('copyResources', Copy) {

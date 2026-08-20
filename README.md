@@ -146,15 +146,20 @@ server.stop();
 `count(path)` and `clear()`. It keeps the last 1000 requests, so a long-running server does not
 grow without bound. `/read` and `/write` are utility endpoints and stay out of the log.
 
-The project is not published anywhere. To use it from another build, point at the jar directly:
+To use it from another build, install it locally:
 
-```gradle
-testImplementation files("C:/programs/tardigrade/tardigrade.jar")
+```bash
+gradle publishToMavenLocal
 ```
 
-The jar bundles its own dependencies, so nothing else needs declaring. It also bundles logback
-and jansi, which will meet whatever the consuming project already uses. Splitting a slim
-`tardigrade-core` out of the executable jar is the step to take if that ever bites.
+```gradle
+repositories { mavenLocal() }
+dependencies { testImplementation "com.darkona:tardigrade:0.0.1" }
+```
+
+The published jar is the executable one, so it carries its dependencies inside, logback and
+jansi included. Splitting a slim `tardigrade-core` out of it is the step to take if that ever
+clashes with the consuming project.
 
 ## License
 

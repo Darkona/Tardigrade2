@@ -24,43 +24,43 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("Servidor Tardigrade embebido")
+@DisplayName("Embedded Tardigrade server")
 class TardigradeServerTest {
 
-    private static final String CUERPO_JSON = "{\"cliente\":42,\"nombre\":\"Nandu\"}";
-    private static final String RESPUESTA_MOCK = "{\"id\":42,\"estado\":\"OK\"}";
-    private static final String CABECERA_CORRELACION = "X-CORRELACION-ID";
+    private static final String JSON_BODY = "{\"client\":42,\"name\":\"Nandu\"}";
+    private static final String MOCK_RESPONSE = "{\"id\":42,\"status\":\"OK\"}";
+    private static final String CORRELATION_HEADER = "X-CORRELACION-ID";
 
     @TempDir
-    Path carpeta;
+    Path folder;
 
-    private TardigradeServer servidor;
-    private HttpClient cliente;
+    private TardigradeServer server;
+    private HttpClient client;
 
     @BeforeEach
-    void levantarServidor() throws IOException {
-        Path entrada = Files.createDirectories(carpeta.resolve("input"));
-        Files.writeString(entrada.resolve("cliente.json"), RESPUESTA_MOCK);
-        Files.writeString(carpeta.resolve("configuration.yml"),
-                "mocks:\n  - path: /api/clientes/42\n    file: cliente.json\n");
+    void startServer() throws IOException {
+        Path input = Files.createDirectories(folder.resolve("input"));
+        Files.writeString(input.resolve("client.json"), MOCK_RESPONSE);
+        Files.writeString(folder.resolve("configuration.yml"),
+                "mocks:\n  - path: /api/clients/42\n    file: client.json\n");
 
-        servidor = new TardigradeServer(configuracion(entrada));
-        servidor.start();
-        cliente = HttpClient.newHttpClient();
+        server = new TardigradeServer(configuration(input));
+        server.start();
+        client = HttpClient.newHttpClient();
     }
 
     @AfterEach
-    void detenerServidor() {
-        servidor.stop();
+    void stopServer() {
+        server.stop();
     }
 
-    private TardigradeConfiguration configuracion(Path entrada) {
+    private TardigradeConfiguration configuration(Path input) {
         try {
             return new TardigradeConfiguration(new String[]{
                     "-p", "0",
-                    "-c", carpeta.resolve("configuration.yml").toString(),
-                    "-i", entrada.toString(),
-                    "-o", carpeta.resolve("output").toString(),
+                    "-c", folder.resolve("configuration.yml").toString(),
+                    "-i", input.toString(),
+                    "-o", folder.resolve("output").toString(),
                     "-d", "color"
             });
         } catch (Exception e) {
@@ -68,153 +68,153 @@ class TardigradeServerTest {
         }
     }
 
-    private HttpResponse<String> enviar(HttpRequest peticion) throws Exception {
-        return cliente.send(peticion, HttpResponse.BodyHandlers.ofString());
+    private HttpResponse<String> send(HttpRequest request) throws Exception {
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private HttpRequest get(String ruta) {
-        return HttpRequest.newBuilder(URI.create(servidor.baseUrl() + ruta)).build();
+    private HttpRequest get(String path) {
+        return HttpRequest.newBuilder(URI.create(server.baseUrl() + path)).build();
     }
 
     @Nested
-    @DisplayName("Ciclo de vida")
-    class CicloDeVida {
+    @DisplayName("Life cycle")
+    class LifeCycle {
 
         @Test
-        @DisplayName("Toma un puerto libre cuando se configura el puerto 0")
-        void tomaPuertoLibre() {
-            assertTrue(servidor.port() > 0, "Deberia haber tomado un puerto real");
-            assertTrue(servidor.isRunning());
-            assertEquals("http://localhost:" + servidor.port(), servidor.baseUrl());
+        @DisplayName("Takes a free port when configured with port 0")
+        void takesAFreePort() {
+            assertTrue(server.port() > 0, "Should have taken a real port");
+            assertTrue(server.isRunning());
+            assertEquals("http://localhost:" + server.port(), server.baseUrl());
         }
 
         @Test
-        @DisplayName("Rechaza arrancar dos veces la misma instancia")
-        void rechazaDobleArranque() {
-            assertThrows(IllegalStateException.class, () -> servidor.start());
+        @DisplayName("Refuses to start the same instance twice")
+        void refusesToStartTwice() {
+            assertThrows(IllegalStateException.class, () -> server.start());
         }
 
         @Test
-        @DisplayName("Libera el puerto al detenerse y permite volver a arrancar")
-        void liberaElPuertoAlDetenerse() throws IOException {
-            servidor.stop();
+        @DisplayName("Releases the port on stop and can be started again")
+        void releasesThePortOnStop() throws IOException {
+            server.stop();
 
-            assertFalse(servidor.isRunning());
-            assertEquals(-1, servidor.port());
+            assertFalse(server.isRunning());
+            assertEquals(-1, server.port());
 
-            servidor.start();
+            server.start();
 
-            assertTrue(servidor.isRunning());
-            assertTrue(servidor.port() > 0, "Deberia haber vuelto a bindear");
+            assertTrue(server.isRunning());
+            assertTrue(server.port() > 0, "Should have bound again");
         }
 
         @Test
-        @DisplayName("Dos instancias conviven en la misma JVM con puertos distintos")
-        void dosInstanciasConviven() throws IOException {
-            TardigradeServer otro = new TardigradeServer(configuracion(carpeta.resolve("input")));
+        @DisplayName("Two instances share a JVM on different ports")
+        void twoInstancesShareAJvm() throws IOException {
+            TardigradeServer other = new TardigradeServer(configuration(folder.resolve("input")));
             try {
-                otro.start();
-                assertNotEquals(servidor.port(), otro.port());
+                other.start();
+                assertNotEquals(server.port(), other.port());
             } finally {
-                otro.stop();
+                other.stop();
             }
         }
     }
 
     @Nested
-    @DisplayName("Registro de peticiones")
-    class RegistroDePeticiones {
+    @DisplayName("Request recording")
+    class RequestRecording {
 
         @Test
-        @DisplayName("Registra metodo, ruta y cuerpo de lo que recibe")
-        void registraLaPeticion() throws Exception {
-            enviar(HttpRequest.newBuilder(URI.create(servidor.baseUrl() + "/api/pagos"))
-                    .POST(HttpRequest.BodyPublishers.ofString(CUERPO_JSON))
+        @DisplayName("Records the method, path and body it receives")
+        void recordsTheRequest() throws Exception {
+            send(HttpRequest.newBuilder(URI.create(server.baseUrl() + "/api/payments"))
+                    .POST(HttpRequest.BodyPublishers.ofString(JSON_BODY))
                     .build());
 
-            RecordedRequest recibida = servidor.requests().last().orElseThrow();
+            RecordedRequest received = server.requests().last().orElseThrow();
 
-            assertEquals("POST", recibida.method());
-            assertEquals("/api/pagos", recibida.path());
-            assertEquals(CUERPO_JSON, recibida.body());
+            assertEquals("POST", received.method());
+            assertEquals("/api/payments", received.path());
+            assertEquals(JSON_BODY, received.body());
         }
 
         @Test
-        @DisplayName("Conserva las cabeceras y las busca sin distinguir mayusculas")
-        void conservaLasCabeceras() throws Exception {
-            enviar(HttpRequest.newBuilder(URI.create(servidor.baseUrl() + "/api/pagos"))
-                    .header(CABECERA_CORRELACION, "abc-123")
-                    .POST(HttpRequest.BodyPublishers.ofString(CUERPO_JSON))
+        @DisplayName("Keeps headers and looks them up ignoring case")
+        void keepsHeaders() throws Exception {
+            send(HttpRequest.newBuilder(URI.create(server.baseUrl() + "/api/payments"))
+                    .header(CORRELATION_HEADER, "abc-123")
+                    .POST(HttpRequest.BodyPublishers.ofString(JSON_BODY))
                     .build());
 
-            RecordedRequest recibida = servidor.requests().last().orElseThrow();
+            RecordedRequest received = server.requests().last().orElseThrow();
 
-            assertTrue(recibida.hasHeader(CABECERA_CORRELACION));
-            assertEquals(Optional.of("abc-123"), recibida.header("x-correlacion-id"));
+            assertTrue(received.hasHeader(CORRELATION_HEADER));
+            assertEquals(Optional.of("abc-123"), received.header("x-correlacion-id"));
         }
 
         @Test
-        @DisplayName("Separa la query string de la ruta")
-        void separaLaQueryString() throws Exception {
-            enviar(get("/api/clientes?activo=true"));
+        @DisplayName("Splits the query string off the path")
+        void splitsTheQueryString() throws Exception {
+            send(get("/api/clients?active=true"));
 
-            RecordedRequest recibida = servidor.requests().last().orElseThrow();
+            RecordedRequest received = server.requests().last().orElseThrow();
 
-            assertEquals("/api/clientes", recibida.path());
-            assertEquals("activo=true", recibida.query());
+            assertEquals("/api/clients", received.path());
+            assertEquals("active=true", received.query());
         }
 
         @Test
-        @DisplayName("Cuenta las peticiones por ruta")
-        void cuentaPorRuta() throws Exception {
-            enviar(get("/api/uno"));
-            enviar(get("/api/dos"));
-            enviar(get("/api/uno"));
+        @DisplayName("Counts requests per path")
+        void countsPerPath() throws Exception {
+            send(get("/api/one"));
+            send(get("/api/two"));
+            send(get("/api/one"));
 
-            assertEquals(3, servidor.requests().count());
-            assertEquals(2, servidor.requests().count("/api/uno"));
-            assertEquals(1, servidor.requests().count("/api/dos"));
+            assertEquals(3, server.requests().count());
+            assertEquals(2, server.requests().count("/api/one"));
+            assertEquals(1, server.requests().count("/api/two"));
         }
 
         @Test
-        @DisplayName("Queda vacio despues de limpiarlo")
-        void quedaVacioTrasLimpiar() throws Exception {
-            enviar(get("/api/uno"));
+        @DisplayName("Is empty once cleared")
+        void isEmptyOnceCleared() throws Exception {
+            send(get("/api/one"));
 
-            servidor.requests().clear();
+            server.requests().clear();
 
-            assertTrue(servidor.requests().isEmpty());
+            assertTrue(server.requests().isEmpty());
         }
     }
 
     @Nested
-    @DisplayName("Respuestas definidas")
-    class RespuestasDefinidas {
+    @DisplayName("Defined responses")
+    class DefinedResponses {
 
         @Test
-        @DisplayName("Responde el archivo configurado para la ruta")
-        void respondeElMock() throws Exception {
-            HttpResponse<String> respuesta = enviar(get("/api/clientes/42"));
+        @DisplayName("Answers with the file configured for the path")
+        void answersWithTheMock() throws Exception {
+            HttpResponse<String> response = send(get("/api/clients/42"));
 
-            assertEquals(200, respuesta.statusCode());
-            assertEquals(RESPUESTA_MOCK, respuesta.body());
+            assertEquals(200, response.statusCode());
+            assertEquals(MOCK_RESPONSE, response.body());
         }
 
         @Test
-        @DisplayName("Registra tambien las peticiones que responde un mock")
-        void registraLasPeticionesConMock() throws Exception {
-            enviar(get("/api/clientes/42"));
+        @DisplayName("Records mocked requests as well")
+        void recordsMockedRequests() throws Exception {
+            send(get("/api/clients/42"));
 
-            assertEquals(1, servidor.requests().count("/api/clientes/42"));
+            assertEquals(1, server.requests().count("/api/clients/42"));
         }
 
         @Test
-        @DisplayName("Acusa recibo en las rutas sin mock definido")
-        void acusaReciboSinMock() throws Exception {
-            HttpResponse<String> respuesta = enviar(get("/ruta/sin/mock"));
+        @DisplayName("Acknowledges paths with no mock defined")
+        void acknowledgesUnmappedPaths() throws Exception {
+            HttpResponse<String> response = send(get("/path/with/no/mock"));
 
-            assertEquals(200, respuesta.statusCode());
-            assertTrue(respuesta.body().contains("logged"));
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("logged"));
         }
     }
 }
