@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -219,5 +220,32 @@ public class TardigradeConfiguration {
     /** The editable configuration file next to the jar, or null when there is none. */
     public Path configFile() {
         return externalConfig();
+    }
+
+    /**
+     * Filesystem path behind a classpath resource, so an embedded server can use a
+     * configuration file and mock bodies kept in {@code src/test/resources}.
+     *
+     * <p>Relative directories hang from the directory holding the jar, which for a dependency
+     * is the build cache. Passing an absolute path resolved here keeps everything inside the
+     * project instead.
+     *
+     * <p>Only resources that live in a real directory can be used: a build copies
+     * {@code src/test/resources} into {@code build/resources/test}, which qualifies, while a
+     * resource packed inside a jar has no filesystem path and is rejected.
+     */
+    public static String classpathPath(String name) {
+        URL url = TardigradeConfiguration.class.getClassLoader().getResource(name);
+        if (url == null) {
+            throw new IllegalArgumentException("There is no classpath resource named " + name);
+        }
+        if (!"file".equals(url.getProtocol())) {
+            throw new IllegalArgumentException(name + " is packed inside " + url + " and has no filesystem path");
+        }
+        try {
+            return Path.of(url.toURI()).toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Could not read the location of " + name, e);
+        }
     }
 }

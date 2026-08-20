@@ -142,6 +142,37 @@ assertTrue(received.hasHeader("X-CORRELACION-ID"));
 server.stop();
 ```
 
+### Keeping mocks inside the project
+
+Relative directories hang from the directory holding the jar, which for a dependency is the
+build cache. To keep everything in the project instead, put the mocks in `src/test/resources`
+and resolve them with `classpathPath`:
+
+```
+src/test/resources/tardigrade/
+  configuration.yml
+  input/
+    greeting.json
+```
+
+```java
+var config = new TardigradeConfiguration(new String[]{
+        "-p", "0",
+        "-c", TardigradeConfiguration.classpathPath("tardigrade/configuration.yml"),
+        "-i", TardigradeConfiguration.classpathPath("tardigrade/input"),
+        "-o", Path.of("build", "tardigrade-output").toAbsolutePath().toString()
+});
+```
+
+The build copies those resources into `build/resources/test`, a real directory, which is what
+`classpathPath` hands back. A resource packed inside a jar has no filesystem path and is
+rejected with a message saying so.
+
+With the requests kept in memory, the files on disk are only the responses: the output
+directory is rarely needed in a test.
+
+### The request log
+
 `requests()` gives the log: `all()`, `forPath(path)`, `last()`, `last(path)`, `count()`,
 `count(path)` and `clear()`. It keeps the last 1000 requests, so a long-running server does not
 grow without bound. `/read` and `/write` are utility endpoints and stay out of the log.
