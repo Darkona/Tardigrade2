@@ -1,27 +1,18 @@
 package com.darkona.tardigrade;
 
 import ch.qos.logback.classic.Level;
-import com.darkona.tardigrade.configuration.ConfigWatcher;
-import com.darkona.tardigrade.configuration.MockRouter;
 import com.darkona.tardigrade.configuration.TardigradeConfiguration;
-import com.darkona.tardigrade.handlers.LogHandler;
-import com.darkona.tardigrade.handlers.MockHandler;
-import com.darkona.tardigrade.handlers.ReadHandler;
-import com.darkona.tardigrade.handlers.WriteHandler;
-import com.darkona.tardigrade.logging.BoldAnsi;
 import com.darkona.tardigrade.logging.RegularAnsi;
-import com.sun.net.httpserver.HttpServer;
 import org.fusesource.jansi.AnsiConsole;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import static com.darkona.tardigrade.logging.Rainbow.rainbowify;
+
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.List;
 
 
+/** Command line entry point. The server itself lives in {@link TardigradeServer}. */
 public class Main {
 
     static final String NAME = "Tardigrade";
@@ -35,26 +26,6 @@ public class Main {
     static final String fullColor = rainbowify("Full color");
 
 
-    public static String rainbowify(String s) {
-        List<BoldAnsi> rainbow = List.of(BoldAnsi.RED, BoldAnsi.ORANGE, BoldAnsi.YELLOW, BoldAnsi.GREEN, BoldAnsi.AQUA, BoldAnsi.BLUE, BoldAnsi.PURPLE, BoldAnsi.PINK);
-        StringBuilder result = new StringBuilder();
-        int colorIndex = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c != ' ' && c != '\n') {
-                result.append(rainbow.get(colorIndex));
-                colorIndex = (colorIndex + 1) % rainbow.size();
-            } else {
-                if (c == '\n') {
-                    colorIndex = 0;
-                }
-            }
-            result.append(c);
-        }
-        result.append(RegularAnsi.RESET);
-        return result.toString();
-    }
-
 
     public static void main(String[] args) throws Exception {
         config = new TardigradeConfiguration(args);
@@ -64,45 +35,17 @@ public class Main {
         }
         printInitialization(config);
 
-        startserver();
+        TardigradeServer server = new TardigradeServer(config);
+        server.onReload(() -> applyLogLevel(config.logLevel()));
+        int port = server.start();
 
-        System.out.println(name() + " Server is running from http://" + InetAddress.getLocalHost().getHostAddress() + ":" + config.port());
-        say("Also: http://localhost:" + config.port());
-
+        System.out.println(name() + " Server is running from http://" + InetAddress.getLocalHost().getHostAddress() + ":" + port);
+        say("Also: http://localhost:" + port);
     }
 
     private static void applyLogLevel(String level) {
         var root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
         root.setLevel(Level.toLevel(level, Level.INFO));
-    }
-
-    private static void startserver() throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(Integer.parseInt(config.port())), 0);
-        server.createContext("/read", new ReadHandler(config));
-        server.createContext("/write", new WriteHandler(config));
-        server.createContext("/log", new LogHandler(config));
-        // Catch-all: every other path is logged too, so clients can be pointed here
-        // without having to change their URLs.
-        MockRouter router = new MockRouter(config.mocks());
-        router.report(inputDirectory());
-        MockHandler mockHandler = new MockHandler(config, router, new LogHandler(config));
-        server.createContext("/", mockHandler);
-        ConfigWatcher.start(config.configFile(), () -> reloadConfiguration(mockHandler));
-
-        server.start();
-    }
-
-    private static Path inputDirectory() {
-        return Path.of(config.input()).toAbsolutePath().normalize();
-    }
-
-    /** Applies configuration.yml again after it changes on disk. */
-    private static void reloadConfiguration(MockHandler mockHandler) {
-        config.reload();
-        applyLogLevel(config.logLevel());
-        MockRouter router = new MockRouter(config.mocks());
-        router.report(inputDirectory());
-        mockHandler.setRouter(router);
     }
 
     private static String name() {
@@ -121,7 +64,7 @@ public class Main {
         var input = paint(RegularAnsi.DARK_GREEN, config.input());
         var output = paint(RegularAnsi.DARK_RED, config.output());
         say("Reading files from: " + input + ", writing files to: " + output);
-        say("Attempting to bind to port " + config.port());
+        say("Attempting to bind to port " + ("0".equals(config.port()) ? "any free one" : config.port()));
     }
 
     private static String paint(RegularAnsi color, String text) {

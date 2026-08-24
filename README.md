@@ -16,7 +16,7 @@ can exercise an application without its real dependencies.
 
 ### Prerequisites
 
-- Java Development Kit (JDK) 11 or higher
+- Java Development Kit (JDK) 21 or higher
 - Gradle
 
 ### Installation
@@ -48,9 +48,10 @@ anywhere. Absolute paths given to `-i` or `-o` are used as they are.
 
 ### Command Line Arguments
 
-- **`-p` or `--port`**: Server port. Default `8050`.
+- **`-p` or `--port`**: Server port. Default `8050`. Use `0` to take any free port.
 - **`-o` or `--output`**: Output directory for written files. Default `output`.
 - **`-i` or `--input`**: Input directory for served files and mock bodies. Default `input`.
+- **`-c` or `--config`**: Configuration file to read instead of the one next to the jar.
 - **`-q` or `--quiet`**: Quiet mode, suppresses the startup banner.
 - **`-d` or `--disable`**: Disables features. Accepts `color`, `header` and `body`, in any
   combination: `-d color header`.
@@ -121,6 +122,75 @@ dropping every mock over a typo. `port` and `color` are read once at startup and
   and the Content-Type. Other verbs return 405.
 - `/log`: logs the request and acknowledges it.
 - Every other path falls through to the mock table, and then to logging.
+
+## Embedded Use
+
+The server has a life cycle of its own and holds no static state, so a test can start one on a
+free port, drive it, and stop it. Every request it answers is kept in memory to assert on.
+
+```java
+var config = new TardigradeConfiguration(new String[]{"-p", "0", "-c", "mocks.yml"});
+var server = new TardigradeServer(config);
+int port = server.start();          // the port the OS handed out
+
+client.call(server.baseUrl() + "/api/clientes/42");
+
+var received = server.requests().last().orElseThrow();
+assertEquals("GET", received.method());
+assertTrue(received.hasHeader("X-CORRELACION-ID"));
+
+server.stop();
+```
+
+### Keeping mocks inside the project
+
+Relative directories hang from the directory holding the jar, which for a dependency is the
+build cache. To keep everything in the project instead, put the mocks in `src/test/resources`
+and resolve them with `classpathPath`:
+
+```
+src/test/resources/tardigrade/
+  configuration.yml
+  input/
+    greeting.json
+```
+
+```java
+var config = new TardigradeConfiguration(new String[]{
+        "-p", "0",
+        "-c", TardigradeConfiguration.classpathPath("tardigrade/configuration.yml"),
+        "-i", TardigradeConfiguration.classpathPath("tardigrade/input"),
+        "-o", Path.of("build", "tardigrade-output").toAbsolutePath().toString()
+});
+```
+
+The build copies those resources into `build/resources/test`, a real directory, which is what
+`classpathPath` hands back. A resource packed inside a jar has no filesystem path and is
+rejected with a message saying so.
+
+With the requests kept in memory, the files on disk are only the responses: the output
+directory is rarely needed in a test.
+
+### The request log
+
+`requests()` gives the log: `all()`, `forPath(path)`, `last()`, `last(path)`, `count()`,
+`count(path)` and `clear()`. It keeps the last 1000 requests, so a long-running server does not
+grow without bound. `/read` and `/write` are utility endpoints and stay out of the log.
+
+To use it from another build, install it locally:
+
+```bash
+gradle publishToMavenLocal
+```
+
+```gradle
+repositories { mavenLocal() }
+dependencies { testImplementation "com.darkona:tardigrade:0.0.1" }
+```
+
+The published jar is the executable one, so it carries its dependencies inside, logback and
+jansi included. Splitting a slim `tardigrade-core` out of it is the step to take if that ever
+clashes with the consuming project.
 
 ## License
 

@@ -1,0 +1,5 @@
+mocks:
+  - path: /api/greeting
+    file: greeting.json
+  - path: /api/health
+    body: '{"status":"UP"}'

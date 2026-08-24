@@ -1,7 +1,6 @@
 package com.darkona.tardigrade.configuration;
 
 import ch.qos.logback.classic.Logger;
-import com.darkona.tardigrade.Main;
 import org.apache.commons.cli.*;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -10,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -69,14 +69,15 @@ public class TardigradeConfiguration {
     public TardigradeConfiguration(String[] args) throws ParseException {
         Options options = new Options();
 
-        options.addOption(Option.builder("p").longOpt("port").desc("Server port.").type(Integer.class).numberOfArgs(1).build());
-        options.addOption(Option.builder("o").longOpt("output").desc("Output directory for writing files").numberOfArgs(1).build());
-        options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).build());
-        options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").build());
-        options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().build());
+        options.addOption(Option.builder("p").longOpt("port").desc("Server port.").type(Integer.class).numberOfArgs(1).get());
+        options.addOption(Option.builder("o").longOpt("output").desc("Output directory for writing files").numberOfArgs(1).get());
+        options.addOption(Option.builder("i").longOpt("input").desc("Input directory for loading files").numberOfArgs(1).get());
+        options.addOption(Option.builder("q").longOpt("quiet").desc("Quiet mode, no console output.").get());
+        options.addOption(Option.builder("d").longOpt("disable").desc("Disable features.").hasArgs().get());
 
-        options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").build());
-        //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().build());
+        options.addOption(Option.builder("c").longOpt("config").desc("Configuration file to read instead of the one next to the jar.").numberOfArgs(1).get());
+        options.addOption(Option.builder("h").longOpt("help").desc("Print this help message.").get());
+        //options.addOption(Option.builder("l").longOpt("logres").desc("File to respond to log requests, taken from input.").hasArgs().get());
 
         cmd = new DefaultParser().parse(options, args);
         yml = loadInitialYaml();
@@ -132,7 +133,7 @@ public class TardigradeConfiguration {
     }
 
     private Map<String, Object> bundledYaml() {
-        try (InputStream in = Main.class.getClassLoader().getResourceAsStream(CONFIG_FILE)) {
+        try (InputStream in = TardigradeConfiguration.class.getClassLoader().getResourceAsStream(CONFIG_FILE)) {
             if (in != null) {
                 return asMap(new Yaml().load(in));
             }
@@ -148,6 +149,9 @@ public class TardigradeConfiguration {
     }
 
     private Path externalConfig() {
+        if (cmd.hasOption("c")) {
+            return Path.of(cmd.getOptionValue("c")).toAbsolutePath().normalize();
+        }
         Path home = installDirectory();
         return home == null ? null : home.resolve(CONFIG_FILE);
     }
@@ -159,7 +163,7 @@ public class TardigradeConfiguration {
      */
     private Path installDirectory() {
         try {
-            File jar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            File jar = new File(TardigradeConfiguration.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             File dir = jar.isDirectory() ? jar : jar.getParentFile();
             return dir == null ? null : dir.toPath();
         } catch (URISyntaxException | RuntimeException e) {
@@ -216,5 +220,32 @@ public class TardigradeConfiguration {
     /** The editable configuration file next to the jar, or null when there is none. */
     public Path configFile() {
         return externalConfig();
+    }
+
+    /**
+     * Filesystem path behind a classpath resource, so an embedded server can use a
+     * configuration file and mock bodies kept in {@code src/test/resources}.
+     *
+     * <p>Relative directories hang from the directory holding the jar, which for a dependency
+     * is the build cache. Passing an absolute path resolved here keeps everything inside the
+     * project instead.
+     *
+     * <p>Only resources that live in a real directory can be used: a build copies
+     * {@code src/test/resources} into {@code build/resources/test}, which qualifies, while a
+     * resource packed inside a jar has no filesystem path and is rejected.
+     */
+    public static String classpathPath(String name) {
+        URL url = TardigradeConfiguration.class.getClassLoader().getResource(name);
+        if (url == null) {
+            throw new IllegalArgumentException("There is no classpath resource named " + name);
+        }
+        if (!"file".equals(url.getProtocol())) {
+            throw new IllegalArgumentException(name + " is packed inside " + url + " and has no filesystem path");
+        }
+        try {
+            return Path.of(url.toURI()).toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Could not read the location of " + name, e);
+        }
     }
 }

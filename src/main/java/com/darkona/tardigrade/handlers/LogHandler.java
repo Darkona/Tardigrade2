@@ -4,6 +4,8 @@ import ch.qos.logback.classic.Logger;
 import com.darkona.tardigrade.configuration.TardigradeConfiguration;
 import com.darkona.tardigrade.logging.BoldAnsi;
 import com.darkona.tardigrade.logging.RegularAnsi;
+import com.darkona.tardigrade.recording.RecordedRequest;
+import com.darkona.tardigrade.recording.RequestLog;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -12,9 +14,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Map;
 
-import static com.darkona.tardigrade.Main.rainbowify;
+import static com.darkona.tardigrade.logging.Rainbow.rainbowify;
 
 public class LogHandler extends TardigradeHandler implements HttpHandler {
 
@@ -23,9 +26,15 @@ public class LogHandler extends TardigradeHandler implements HttpHandler {
     private final Logger methodLog = (Logger) LoggerFactory.getLogger("METHOD");
 
     private final TardigradeConfiguration config;
+    private final RequestLog requests;
 
     public LogHandler(TardigradeConfiguration config) {
+        this(config, new RequestLog());
+    }
+
+    public LogHandler(TardigradeConfiguration config, RequestLog requests) {
         this.config = config;
+        this.requests = requests;
         headLog = (Logger) LoggerFactory.getLogger(config.color() ? rainbowify("HEADER") : "HEADER");
     }
 
@@ -47,24 +56,40 @@ public class LogHandler extends TardigradeHandler implements HttpHandler {
         sendResponse(exchange, "You request has been logged! :)", "text/plain");
     }
 
-    /** Logs the request without answering it, so the mocker can reuse it. */
+    /** Records and logs the request without answering it, so the mocker can reuse it. */
     public void logRequest(HttpExchange exchange) {
+        // The body is always read, even when it is not printed: the recording needs it and the
+        // stream can only be drained once.
+        String body = readBody(exchange.getRequestBody());
+        requests.record(recordOf(exchange, body));
+
         logMethod(exchange.getRequestMethod(), exchange.getRequestURI().toString());
         if (config.headers()) {
             logHeaders(exchange.getRequestHeaders());
         }
         if (config.body()) {
-            logBody(exchange.getRequestBody());
+            bodyLog.info("\n" + body);
         }
     }
 
-    private void logBody(InputStream body) {
+    private RecordedRequest recordOf(HttpExchange exchange, String body) {
+        return new RecordedRequest(
+                exchange.getRequestMethod().toUpperCase(),
+                exchange.getRequestURI().getPath(),
+                exchange.getRequestURI().getQuery(),
+                Map.copyOf(exchange.getRequestHeaders()),
+                body,
+                Instant.now()
+        );
+    }
+
+    private String readBody(InputStream body) {
         try (body) {
-            bodyLog.info("\n" + new String(body.readAllBytes(), StandardCharsets.UTF_8));
+            return new String(body.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             bodyLog.error("Error reading body!", e);
+            return "";
         }
-
     }
 
     private void logMethod(String requestMethod, String uri) {
